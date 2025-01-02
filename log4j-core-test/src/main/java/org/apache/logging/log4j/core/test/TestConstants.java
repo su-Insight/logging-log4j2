@@ -75,17 +75,17 @@ public final class TestConstants {
 
     private static final String JNDI = "log4j.jndi.";
 
-    public static final String JNDI_CONTEXT_SELECTOR = JNDI + "enableContextSelector";
-
     public static final String JNDI_ENABLE_LOOKUP = JNDI + "enableLookup";
 
     public static final String JNDI_ENABLE_JDBC = JNDI + "enableJdbc";
 
-    public static final String JNDI_ENABLE_JMS = JNDI + "enableJms";
-
     private static final String LOGGER_CONTEXT = "log4j.loggerContext.";
 
+    public static final String LOGGER_CONTEXT_FACTORY = LOGGER_CONTEXT + "factory";
+
     public static final String LOGGER_CONTEXT_SELECTOR = LOGGER_CONTEXT + "selector";
+
+    public static final String LOGGER_CONTEXT_SHUTDOWN_HOOK_ENABLED = LOGGER_CONTEXT + "shutdownHookEnabled";
 
     private static final String LOG_EVENT = "log4j.logEvent.";
 
@@ -111,9 +111,7 @@ public final class TestConstants {
 
     public static final String THREAD_CONTEXT_MAP_CLASS = THREAD_CONTEXT + "mapClass";
 
-    private static final String WEB = "log4j.web.";
-
-    public static final String WEB_IS_WEB_APP = WEB + "isWebApp";
+    public static final String WEB_IS_WEB_APP = "log4j2.isWebApp";
 
     public static @Nullable String setSystemProperty(final String key, final @Nullable String value) {
         final String oldValue = System.getProperty(key);
