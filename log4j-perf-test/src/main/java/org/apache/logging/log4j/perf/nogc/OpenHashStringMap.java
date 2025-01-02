@@ -798,6 +798,15 @@ public class OpenHashStringMap<K, V> implements StringMap, ThreadContextMap {
         return sb.toString();
     }
 
+    @Override
+    public Object setContextData(final Object contextMap) {
+        final Object current = getContextData();
+        final Map<? extends K, ? extends V> map = Objects.requireNonNull((Map<? extends K, ? extends V>) contextMap);
+        clear();
+        putAll(map);
+        return current;
+    }
+
     private static final class HashCommon {
         private HashCommon() {}
 
