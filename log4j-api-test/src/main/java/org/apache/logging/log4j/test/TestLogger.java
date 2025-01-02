@@ -20,13 +20,16 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.ScopedContext;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.MessageFactory;
+import org.apache.logging.log4j.message.ParameterizedMapMessage;
 import org.apache.logging.log4j.spi.AbstractLogger;
 
 /**
@@ -75,18 +78,27 @@ public class TestLogger extends AbstractLogger {
         sb.append(level.toString());
         sb.append(' ');
         if (location != null) {
-            sb.append(location.toString());
+            sb.append(location);
             sb.append(' ');
         }
         sb.append(message.getFormattedMessage());
-        final Map<String, String> mdc = ThreadContext.getImmutableContext();
-        if (mdc.size() > 0) {
+        Map<String, ScopedContext.Renderable> contextMap = ScopedContext.getContextMap();
+        final Map<String, String> mdc = new HashMap<>(ThreadContext.getImmutableContext());
+        if (contextMap != null && !contextMap.isEmpty()) {
+            contextMap.forEach((key, value) -> mdc.put(key, value.render()));
+        }
+        if (!mdc.isEmpty()) {
             sb.append(' ');
-            sb.append(mdc.toString());
+            sb.append(mdc);
+            sb.append(' ');
+        }
+        if (message instanceof ParameterizedMapMessage) {
+            sb.append(" Map data: ");
+            sb.append(((ParameterizedMapMessage) message).getData().toString());
             sb.append(' ');
         }
         final Object[] params = message.getParameters();
-        Throwable t;
+        final Throwable t;
         if (throwable == null
                 && params != null
                 && params.length > 0
@@ -99,7 +111,7 @@ public class TestLogger extends AbstractLogger {
             sb.append(' ');
             final ByteArrayOutputStream baos = new ByteArrayOutputStream();
             t.printStackTrace(new PrintStream(baos));
-            sb.append(baos.toString());
+            sb.append(baos);
         }
         list.add(sb.toString());
         // System.out.println(sb.toString());
