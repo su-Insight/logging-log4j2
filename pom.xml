@@ -348,7 +348,7 @@
     <!-- ============================================================
          Direct dependency version properties (in alphabetical order)
          ============================================================ -->
-    <log4j-docgen.version>0.8.0</log4j-docgen.version>
+    <log4j-docgen.version>0.9.0</log4j-docgen.version>
     <node.version>21.7.1</node.version>
     <npm.version>10.5.0</npm.version>
 
@@ -861,14 +861,18 @@
             <phase>pre-site</phase>
             <configuration>
               <templateDirectory>${project.basedir}/src/docgen</templateDirectory>
-              <indexTemplate>
-                <source>index.adoc.ftl</source>
-                <target>${project.build.directory}/generated-site/antora/modules/ROOT/pages/plugin-reference.adoc</target>
-              </indexTemplate>
-              <typeTemplate>
-                <source>type.adoc.ftl</source>
-                <target>${project.build.directory}/generated-site/antora/modules/ROOT/pages/_plugin-reference/%g-%a-%c.adoc</target>
-              </typeTemplate>
+              <indexTemplates>
+                <template>
+                  <source>index.adoc.ftl</source>
+                  <target>${project.build.directory}/generated-site/antora/modules/ROOT/pages/plugin-reference.adoc</target>
+                </template>
+              </indexTemplates>
+              <typeTemplates>
+                <template>
+                  <source>type.adoc.ftl</source>
+                  <target>${project.build.directory}/generated-site/antora/modules/ROOT/pages/_plugin-reference/%g-%a-%c.adoc</target>
+                </template>
+              </typeTemplates>
             </configuration>
           </execution>
 
