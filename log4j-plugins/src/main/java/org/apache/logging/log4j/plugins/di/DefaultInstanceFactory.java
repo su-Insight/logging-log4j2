@@ -35,8 +35,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.kit.env.PropertyEnvironment;
-import org.apache.logging.log4j.lang.NullMarked;
-import org.apache.logging.log4j.lang.Nullable;
 import org.apache.logging.log4j.plugins.FactoryType;
 import org.apache.logging.log4j.plugins.ScopeType;
 import org.apache.logging.log4j.plugins.condition.Condition;
@@ -49,14 +47,16 @@ import org.apache.logging.log4j.plugins.di.spi.InstancePostProcessor;
 import org.apache.logging.log4j.plugins.di.spi.ReflectionAgent;
 import org.apache.logging.log4j.plugins.di.spi.ResolvableKey;
 import org.apache.logging.log4j.plugins.di.spi.Scope;
+import org.apache.logging.log4j.plugins.internal.util.AnnotationUtil;
 import org.apache.logging.log4j.plugins.internal.util.BeanUtils;
 import org.apache.logging.log4j.plugins.internal.util.BindingMap;
 import org.apache.logging.log4j.plugins.internal.util.HierarchicalMap;
-import org.apache.logging.log4j.plugins.util.AnnotationUtil;
 import org.apache.logging.log4j.plugins.util.OrderedComparator;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.Cast;
 import org.apache.logging.log4j.util.LoaderUtil;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 public class DefaultInstanceFactory implements ConfigurableInstanceFactory {
 
