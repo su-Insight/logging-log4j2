@@ -17,6 +17,7 @@
 package org.apache.logging.log4j.core.async;
 
 import com.lmax.disruptor.EventFactory;
+import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.EventTranslatorTwoArg;
 import com.lmax.disruptor.ExceptionHandler;
 import com.lmax.disruptor.RingBuffer;
@@ -40,6 +41,7 @@ import org.apache.logging.log4j.core.util.Log4jThread;
 import org.apache.logging.log4j.core.util.Log4jThreadFactory;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.apache.logging.log4j.message.ReusableMessage;
+import org.apache.logging.log4j.util.LoaderUtil;
 
 /**
  * Helper class decoupling the {@code AsyncLoggerConfig} class from the LMAX Disruptor library.
@@ -92,12 +94,14 @@ public class AsyncLoggerConfigDisruptor extends AbstractLifeCycle implements Asy
     /**
      * EventHandler performs the work in a separate thread.
      */
-    private static class Log4jEventWrapperHandler implements SequenceReportingEventHandler<Log4jEventWrapper> {
+    private static class Log4jEventWrapperHandler implements EventHandler<Log4jEventWrapper> {
         private static final int NOTIFY_PROGRESS_THRESHOLD = 50;
         private Sequence sequenceCallback;
         private int counter;
 
-        @Override
+        /*
+         * Overrides a method from Disruptor 4.x. Do not remove.
+         */
         public void setSequenceCallback(final Sequence sequenceCallback) {
             this.sequenceCallback = sequenceCallback;
         }
@@ -123,6 +127,12 @@ public class AsyncLoggerConfigDisruptor extends AbstractLifeCycle implements Asy
             }
         }
     }
+
+    /**
+     * A version of Log4jEventWrapperHandler for LMAX Disruptor 3.x.
+     */
+    private static final class Log4jEventWrapperHandler3 extends Log4jEventWrapperHandler
+            implements SequenceReportingEventHandler<Log4jEventWrapper> {}
 
     /**
      * Factory used to populate the RingBuffer with events. These event objects are then re-used during the life of the
@@ -154,6 +164,16 @@ public class AsyncLoggerConfigDisruptor extends AbstractLifeCycle implements Asy
                 ((MutableLogEvent) ringBufferElement.event).initFrom(logEvent);
                 ringBufferElement.loggerConfig = loggerConfig;
             };
+
+    private Log4jEventWrapperHandler createEventHandler() {
+        try {
+            return LoaderUtil.newInstanceOf(
+                    "org.apache.logging.log4j.core.async.AsyncLoggerConfigDisruptor$Log4jEventWrapperHandler3");
+        } catch (final ReflectiveOperationException | LinkageError e) {
+            LOGGER.debug("LMAX Disruptor 3.x is missing, trying version 4.x.", e);
+        }
+        return new Log4jEventWrapperHandler();
+    }
 
     private int ringBufferSize;
     private AsyncQueueFullPolicy asyncQueueFullPolicy;
@@ -220,7 +240,7 @@ public class AsyncLoggerConfigDisruptor extends AbstractLifeCycle implements Asy
         final ExceptionHandler<Log4jEventWrapper> errorHandler = DisruptorUtil.getAsyncLoggerConfigExceptionHandler();
         disruptor.setDefaultExceptionHandler(errorHandler);
 
-        final Log4jEventWrapperHandler[] handlers = {new Log4jEventWrapperHandler()};
+        final Log4jEventWrapperHandler[] handlers = {createEventHandler()};
         disruptor.handleEventsWith(handlers);
 
         LOGGER.debug(
