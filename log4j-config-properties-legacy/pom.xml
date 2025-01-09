@@ -24,25 +24,26 @@
     <relativePath>../log4j-parent</relativePath>
   </parent>
 
-  <artifactId>log4j-config-yaml</artifactId>
-  <name>Log4j Core YAML configuration</name>
-  <description>Provides a Jackson-based YAML configuration factory.</description>
+  <artifactId>log4j-config-properties-legacy</artifactId>
+  <name>Legacy Log4j Core 2.x properties configuration</name>
+  <description>Provides the legacy properties configuration factory from 2.x.</description>
 
   <dependencies>
 
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-config-jackson</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>com.fasterxml.jackson.dataformat</groupId>
-      <artifactId>jackson-dataformat-yaml</artifactId>
+      <artifactId>log4j-core</artifactId>
     </dependency>
 
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
       <scope>test</scope>
     </dependency>
 
