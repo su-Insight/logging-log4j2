@@ -16,11 +16,12 @@
  */
 package org.apache.logging.log4j.core.filter;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -38,7 +39,6 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationScheduler;
 import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
-import org.apache.logging.log4j.core.filter.mutable.KeyValuePairConfig;
 import org.apache.logging.log4j.core.net.ssl.SslConfiguration;
 import org.apache.logging.log4j.core.net.ssl.SslConfigurationFactory;
 import org.apache.logging.log4j.core.util.AuthorizationProvider;
@@ -52,6 +52,7 @@ import org.apache.logging.log4j.plugins.Plugin;
 import org.apache.logging.log4j.plugins.PluginAliases;
 import org.apache.logging.log4j.plugins.PluginAttribute;
 import org.apache.logging.log4j.plugins.PluginFactory;
+import org.apache.logging.log4j.util.JsonReader;
 import org.apache.logging.log4j.util.PerformanceSensitive;
 import org.apache.logging.log4j.util.PropertyEnvironment;
 
@@ -64,8 +65,6 @@ import org.apache.logging.log4j.util.PropertyEnvironment;
 @PerformanceSensitive("allocation")
 public class MutableThreadContextMapFilter extends AbstractFilter {
 
-    private static final ObjectMapper MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final KeyValuePair[] EMPTY_ARRAY = {};
 
     private volatile Filter filter;
@@ -427,73 +426,104 @@ public class MutableThreadContextMapFilter extends AbstractFilter {
             final PropertyEnvironment props,
             final SslConfiguration sslConfiguration) {
         final File inputFile = source.getFile();
+        final ConfigResult configResult = new ConfigResult();
         InputStream inputStream = null;
         HttpInputStreamUtil.Result result = null;
         final long lastModified = source.getLastModified();
-        if (inputFile != null && inputFile.exists()) {
-            try {
-                final long modified = inputFile.lastModified();
-                if (modified > lastModified) {
-                    source.setLastModified(modified);
-                    inputStream = new FileInputStream(inputFile);
-                    result = new HttpInputStreamUtil.Result(Status.SUCCESS);
-                } else {
-                    result = new HttpInputStreamUtil.Result(Status.NOT_MODIFIED);
+        try {
+            if (inputFile != null && inputFile.exists()) {
+                try {
+                    final long modified = inputFile.lastModified();
+                    if (modified > lastModified) {
+                        source.setLastModified(modified);
+                        inputStream = new FileInputStream(inputFile);
+                        result = new HttpInputStreamUtil.Result(Status.SUCCESS);
+                    } else {
+                        result = new HttpInputStreamUtil.Result(Status.NOT_MODIFIED);
+                    }
+                } catch (Exception ex) {
+                    result = new HttpInputStreamUtil.Result(Status.ERROR);
                 }
-            } catch (Exception ex) {
-                result = new HttpInputStreamUtil.Result(Status.ERROR);
+            } else if (source.getURI() != null) {
+                try {
+                    result = HttpInputStreamUtil.getInputStream(source, props, authorizationProvider, sslConfiguration);
+                    inputStream = result.getInputStream();
+                } catch (ConfigurationException ex) {
+                    result = new HttpInputStreamUtil.Result(Status.ERROR);
+                }
+            } else {
+                result = new HttpInputStreamUtil.Result(Status.NOT_FOUND);
             }
-        } else if (source.getURI() != null) {
-            try {
-                result = HttpInputStreamUtil.getInputStream(source, props, authorizationProvider, sslConfiguration);
-                inputStream = result.getInputStream();
-            } catch (ConfigurationException ex) {
-                result = new HttpInputStreamUtil.Result(Status.ERROR);
+            if (result.getStatus() == Status.SUCCESS) {
+                LOGGER.debug("Processing Debug key/value pairs from: {}", source.toString());
+                parseJsonConfiguration(inputStream, configResult);
+            } else {
+                configResult.status = result.getStatus();
             }
-        } else {
-            result = new HttpInputStreamUtil.Result(Status.NOT_FOUND);
+        } finally {
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    LOGGER.warn("Failed to close {}.", source, e);
+                    configResult.status = Status.ERROR;
+                }
+            }
         }
-        final ConfigResult configResult = new ConfigResult();
-        if (result.getStatus() == Status.SUCCESS) {
-            LOGGER.debug("Processing Debug key/value pairs from: {}", source.toString());
-            try {
-                final KeyValuePairConfig keyValuePairConfig = MAPPER.readValue(inputStream, KeyValuePairConfig.class);
-                if (keyValuePairConfig != null) {
-                    final Map<String, String[]> configs = keyValuePairConfig.getConfigs();
-                    if (configs != null && configs.size() > 0) {
-                        final List<KeyValuePair> pairs = new ArrayList<>();
-                        for (Map.Entry<String, String[]> entry : configs.entrySet()) {
-                            final String key = entry.getKey();
-                            for (final String value : entry.getValue()) {
-                                if (value != null) {
-                                    pairs.add(new KeyValuePair(key, value));
+        return configResult;
+    }
+
+    /**
+     * Parses a JSON configuration file.
+     * <pre>
+     *   {
+     *     "config": {
+     *       "loginId": ["rgoers", "adam"],
+     *       "accountNumber": ["30510263"]
+     *   }
+     * }
+     * </pre>
+     */
+    private static void parseJsonConfiguration(final InputStream inputStream, final ConfigResult configResult) {
+        try {
+            final Object wrapper = JsonReader.read(new String(inputStream.readAllBytes(), UTF_8));
+            if (wrapper instanceof Map wrapperMap) {
+                final Object config = wrapperMap.get("configs");
+                if (config instanceof Map<?, ?> configMap && configMap.size() > 0) {
+                    final List<KeyValuePair> pairs = new ArrayList<>();
+                    for (Map.Entry<?, ?> entry : configMap.entrySet()) {
+                        final String key = String.valueOf(entry.getKey());
+                        final Object jsonArray = entry.getValue();
+                        if (jsonArray instanceof List<?> valueList) {
+                            for (final Object value : valueList) {
+                                if (value instanceof String stringValue) {
+                                    pairs.add(new KeyValuePair(key, stringValue));
                                 } else {
-                                    LOGGER.warn("Ignoring null value for {}", key);
+                                    LOGGER.warn("Ignoring null value for {}: {}", key, value);
                                 }
                             }
-                        }
-                        if (pairs.size() > 0) {
-                            configResult.pairs = pairs.toArray(EMPTY_ARRAY);
-                            configResult.status = Status.SUCCESS;
                         } else {
-                            configResult.status = Status.EMPTY;
+                            LOGGER.warn("Ignoring the value for {}, which is not an array: {}", key, jsonArray);
                         }
+                    }
+                    if (pairs.size() > 0) {
+                        configResult.pairs = pairs.toArray(EMPTY_ARRAY);
+                        configResult.status = Status.SUCCESS;
                     } else {
-                        LOGGER.debug("No configuration data in {}", source.toString());
                         configResult.status = Status.EMPTY;
                     }
                 } else {
-                    LOGGER.warn("No configs element in MutableThreadContextMapFilter configuration");
-                    configResult.status = Status.ERROR;
+                    LOGGER.debug("No configuration data in {}", wrapper);
+                    configResult.status = Status.EMPTY;
                 }
-            } catch (Exception ex) {
-                LOGGER.warn("Invalid key/value pair configuration, input ignored: {}", ex.getMessage());
+            } else {
+                LOGGER.warn("No configs element in MutableThreadContextMapFilter configuration");
                 configResult.status = Status.ERROR;
             }
-        } else {
-            configResult.status = result.getStatus();
+        } catch (Exception ex) {
+            LOGGER.warn("Invalid key/value pair configuration, input ignored: {}", ex.getMessage());
+            configResult.status = Status.ERROR;
         }
-        return configResult;
     }
 
     private static class NoOpFilter extends AbstractFilter {
