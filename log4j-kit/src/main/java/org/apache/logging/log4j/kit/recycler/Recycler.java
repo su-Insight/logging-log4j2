@@ -16,17 +16,28 @@
  */
 package org.apache.logging.log4j.kit.recycler;
 
-import org.apache.logging.log4j.kit.env.Log4jProperty;
-import org.jspecify.annotations.Nullable;
-
-public class RecyclerKeys {
+/**
+ * Contract for recycling strategies.
+ * This is the primary building block for logging components striving for garbage-free operation.
+ *
+ * @param <V> the recyclable type
+ * @since 3.0.0
+ */
+public interface Recycler<V> {
 
     /**
-     * A set of common configuration options for recyclers
+     * Acquires an instance of V. This may either be a fresh instance of V or a recycled instance of V.
+     * Recycled instances will be modified by their cleanup function before being returned.
      *
-     * @param factory The name of the recycler factory to use (cf. {@link RecyclerFactoryProvider#getName()}),
-     * @param capacity The capacity of the recycler.
+     * @return an instance of V to be used
      */
-    @Log4jProperty
-    public record Recycler(@Nullable String factory, @Nullable Integer capacity) {}
+    V acquire();
+
+    /**
+     * Releases an instance of V. This allows the instance to be recycled and later reacquired for new
+     * purposes.
+     *
+     * @param value an instance of V no longer being used
+     */
+    void release(V value);
 }
